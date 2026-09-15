@@ -1,0 +1,85 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+  "setuptools >= 61.0",
+]
+
+[project]
+name = "forager"
+version = "0.0.1"
+authors = [
+  { name = "Jhunu Fernandes", email = "jhunu.fernandes@gmail.com" },
+]
+description = "one loop over a folder: filter, ask an LLM, filter, act"
+readme = "README.md"
+requires-python = ">= 3.14"
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development",
+  "Typing :: Typed",
+]
+dependencies = [
+  "openai >= 1.60.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/jhunufernandes/forager"
+"Bug Tracker" = "https://github.com/jhunufernandes/forager/issues"
+"Source" = "https://github.com/jhunufernandes/forager"
+"Documentation" = "https://jhunufernandes.github.io/forager"
+"Changelog" = "https://github.com/jhunufernandes/forager/releases"
+
+[project.optional-dependencies]
+dev = [
+  "coverage[toml]",
+  "mkdocs",
+  "ruff",
+  "ty",
+]
+tests = [
+  "coverage[toml]",
+]
+stage = [
+  "build",
+  "coverage[toml]",
+  "mkdocs",
+  "python-docs-generator @ git+https://github.com/jhunufernandes/python-docs-generator"
+]
+
+[tool.coverage.run]
+branch = true
+command_line = "-m unittest discover -v"
+
+[tool.coverage.report]
+omit = [
+  "tests/*",
+]
+show_missing = true
+exclude_lines = [
+    "def _",
+    "if typing.TYPE_CHECKING:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "^\\s*\\.\\.\\.$",
+]
+
+[tool.ruff]
+line-length = 119
+
+[tool.ruff.lint]
+select = [
+  "ALL",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "PT009",  # pytest-unittest-assertion
+  "PT027",  # pytest-unittest-raises-assertion
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
