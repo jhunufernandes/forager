@@ -1,9 +1,11 @@
 # Copyright (c) 2026 Jhunu Fernandes. All rights reserved.
 """Environment-based configuration loader."""
 
-import dataclasses
-import os
 import pathlib
+import typing
+
+from pydantic import AfterValidator, Field, HttpUrl, StringConstraints
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_LLM_BASE_URL = "http://127.0.0.1:11434/v1"
 DEFAULT_LLM_MODEL = "llama3.2"
@@ -14,55 +16,75 @@ DEFAULT_LLM_USER_PROMPT = "Describe this file in one sentence."
 DEFAULT_INPUT_DIR = "input"
 DEFAULT_OUTPUT_DIR = "output"
 
-_LLM_MAX_ATTEMPTS = "LLM_MAX_ATTEMPTS"
-_LLM_TIMEOUT_SECONDS = "LLM_TIMEOUT_SECONDS"
+
+def _to_path(value: str) -> pathlib.Path:
+    """Coerce a validated non-empty string to a path."""
+    return pathlib.Path(value)
 
 
-@dataclasses.dataclass(frozen=True)
-class LlmSettings:
-    """LLM section loaded from the environment."""
+NonEmptyPath = typing.Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1),
+    AfterValidator(_to_path),
+]
 
-    base_url: str = DEFAULT_LLM_BASE_URL
-    model: str = DEFAULT_LLM_MODEL
+
+class LlmSettings(BaseSettings):
+    """LLM section loaded from the environment.
+
+    Reads ``LLM_BASE_URL``, ``LLM_MODEL``, ``LLM_API_KEY``,
+    ``LLM_MAX_ATTEMPTS``, ``LLM_TIMEOUT_SECONDS`` and ``LLM_USER_PROMPT``.
+    Invalid values fail fast with a :class:`pydantic.ValidationError`.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", env_prefix="LLM_")
+
+    base_url: HttpUrl = HttpUrl(DEFAULT_LLM_BASE_URL)
+    model: typing.Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = DEFAULT_LLM_MODEL
     api_key: str = DEFAULT_LLM_API_KEY
-    max_attempts: int = DEFAULT_LLM_MAX_ATTEMPTS
-    timeout_seconds: float = DEFAULT_LLM_TIMEOUT_SECONDS
-    user_prompt: str = DEFAULT_LLM_USER_PROMPT
+    max_attempts: int = Field(default=DEFAULT_LLM_MAX_ATTEMPTS, ge=1)
+    timeout_seconds: float = Field(default=DEFAULT_LLM_TIMEOUT_SECONDS, gt=0)
+    user_prompt: typing.Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = (
+        DEFAULT_LLM_USER_PROMPT
+    )
 
 
-@dataclasses.dataclass(frozen=True)
-class ForagerSettings:
-    """Forager section loaded from the environment."""
+class ForagerSettings(BaseSettings):
+    """Forager section loaded from the environment.
 
-    input_dir: pathlib.Path = pathlib.Path(DEFAULT_INPUT_DIR)
-    output_dir: pathlib.Path = pathlib.Path(DEFAULT_OUTPUT_DIR)
+    Reads ``INPUT_DIR`` and ``OUTPUT_DIR``. Invalid values fail fast with a
+    :class:`pydantic.ValidationError`.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    input_dir: NonEmptyPath = DEFAULT_INPUT_DIR
+    output_dir: NonEmptyPath = DEFAULT_OUTPUT_DIR
 
 
-def load_llm() -> LlmSettings:
+def load_llm(**overrides: typing.Any) -> LlmSettings:
     """Read the LLM section from the environment.
+
+    Args:
+        **overrides: Keyword arguments taking precedence over the environment,
+            which in turn takes precedence over the defaults.
 
     Returns:
         An :class:`LlmSettings` built from ``LLM_BASE_URL``, ``LLM_MODEL``,
         ``LLM_API_KEY``, ``LLM_MAX_ATTEMPTS``, ``LLM_TIMEOUT_SECONDS`` and
         ``LLM_USER_PROMPT``.
     """
-    return LlmSettings(
-        base_url=os.environ.get("LLM_BASE_URL", DEFAULT_LLM_BASE_URL),
-        model=os.environ.get("LLM_MODEL", DEFAULT_LLM_MODEL),
-        api_key=os.environ.get("LLM_API_KEY", DEFAULT_LLM_API_KEY),
-        max_attempts=int(os.environ.get(_LLM_MAX_ATTEMPTS, DEFAULT_LLM_MAX_ATTEMPTS)),
-        timeout_seconds=float(os.environ.get(_LLM_TIMEOUT_SECONDS, DEFAULT_LLM_TIMEOUT_SECONDS)),
-        user_prompt=os.environ.get("LLM_USER_PROMPT", DEFAULT_LLM_USER_PROMPT),
-    )
+    return LlmSettings(**overrides)
 
 
-def load_forager() -> ForagerSettings:
+def load_forager(**overrides: typing.Any) -> ForagerSettings:
     """Read the forager section from the environment.
+
+    Args:
+        **overrides: Keyword arguments taking precedence over the environment,
+            which in turn takes precedence over the defaults.
 
     Returns:
         A :class:`ForagerSettings` built from ``INPUT_DIR`` and ``OUTPUT_DIR``.
     """
-    return ForagerSettings(
-        input_dir=pathlib.Path(os.environ.get("INPUT_DIR", DEFAULT_INPUT_DIR)),
-        output_dir=pathlib.Path(os.environ.get("OUTPUT_DIR", DEFAULT_OUTPUT_DIR)),
-    )
+    return ForagerSettings(**overrides)
