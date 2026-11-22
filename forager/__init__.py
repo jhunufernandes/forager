@@ -47,11 +47,13 @@ class Llm:
         self._max_attempts = max_attempts
         self._client = openai.OpenAI(base_url=base_url, api_key=api_key or "not-needed", timeout=timeout_seconds)
 
-    def ask(self, prompt: str) -> str | None:
+    def ask(self, prompt: str, *, image: str | None = None, media_type: str = "image/png") -> str | None:
         """Ask the model and return its reply, retrying on failure.
 
         Args:
             prompt: The user prompt to send.
+            image: Optional base64-encoded image sent with the prompt.
+            media_type: MIME type of *image*; ignored when it is ``None``.
 
         Returns:
             The model's reply (possibly empty).
@@ -59,6 +61,12 @@ class Llm:
         Raises:
             RuntimeError: When every attempt fails.
         """
+        content: str | list[dict[str, typing.Any]] = prompt
+        if image is not None:
+            content = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image}"}},
+            ]
         last_exception: Exception | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
@@ -67,7 +75,7 @@ class Llm:
                     temperature=0.0,
                     messages=[
                         {"role": "system", "content": self._SYSTEM_PROMPT},
-                        {"role": "user", "content": prompt},
+                        {"role": "user", "content": content},
                     ],
                 )
                 return response.choices[0].message.content

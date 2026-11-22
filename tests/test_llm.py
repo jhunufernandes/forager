@@ -54,6 +54,38 @@ class LlmTests(unittest.TestCase):
         self.assertEqual(call.kwargs["model"], "test-model")
         self.assertEqual(call.kwargs["messages"][1], {"role": "user", "content": "USER"})
 
+    def test_image_prompt_builds_multimodal_content(self) -> None:
+        """When an image is given, the user message carries text + image blocks."""
+        client = self.patch_client([stub_response("answer")])
+        make_llm().ask("USER", image="QUJD", media_type="image/webp")
+        call = client.chat.completions.create.call_args
+        self.assertEqual(
+            call.kwargs["messages"][1],
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "USER"},
+                    {"type": "image_url", "image_url": {"url": "data:image/webp;base64,QUJD"}},
+                ],
+            },
+        )
+
+    def test_image_defaults_to_png(self) -> None:
+        """The data URI defaults to the PNG media type."""
+        client = self.patch_client([stub_response("answer")])
+        make_llm().ask("USER", image="QUJD")
+        call = client.chat.completions.create.call_args
+        content = call.kwargs["messages"][1]["content"]
+        self.assertEqual(content[1]["image_url"]["url"], "data:image/png;base64,QUJD")
+
+    def test_retries_keep_the_image(self) -> None:
+        """Retried calls resend the same multimodal content."""
+        client = self.patch_client([ValueError("boom"), stub_response("recovered")])
+        make_llm().ask("USER", image="QUJD")
+        self.assertEqual(client.chat.completions.create.call_count, 2)
+        content = client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
+        self.assertEqual(content[1]["image_url"]["url"], "data:image/png;base64,QUJD")
+
     def test_retries_then_succeeds(self) -> None:
         """Failing calls are retried until one succeeds."""
         client = self.patch_client([ValueError("boom"), ValueError("boom"), stub_response("recovered")])
